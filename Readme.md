@@ -14,7 +14,8 @@ Authors (manuscript): Aurko Roy and Sebastian Pokutta
 To run the ILP (warning will be quite slow on large datasets) type
 
 ```shell
-python ip.py -d [data] -l [label_index] -k [kernel] -f [function] -o [out_file] -n [num_workers] -p [prune] -x [num_samples]
+python ip.py -d [data] -l [label_index] -k [kernel] -f [function] -o [out_file] -n [num_workers] 
+-p [prune] -x [num_samples]
 ```
 
 * `[data]`: the path to the data file (comma delimited)
@@ -28,8 +29,8 @@ python ip.py -d [data] -l [label_index] -k [kernel] -f [function] -o [out_file] 
 To run the approximation algorithm (faster) type
 
 ```shell
-python lp.py -d [data] -l [label_index] -k [kernel] -f [function] -o [out_file] -n [num_workers] -p [prune] -x [num_samples]
--t [triangle] -e [epsilon]
+python lp.py -d [data] -l [label_index] -k [kernel] -f [function] -o [out_file] -n [num_workers] 
+-p [prune] -x [num_samples] -t [triangle] -e [epsilon]
 ```
 
 * `[data]`: the path to the data file (comma delimited)
