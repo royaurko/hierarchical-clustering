@@ -20,7 +20,7 @@ python ip.py -d [data] -l [label_index] -k [kernel] -f [function] -o [out_file] 
 
 * `[data]`: the path to the data file (comma delimited)
 * `[label_index]`: the index of the column that contains the labels (default 0)
-* `[metric]`: one of `{avg, max, min}`
+* `[kernel]`: one of `{linear, gaussian}`
 * `[function]`: one of `{linear, quadratic, cubic, exponential, logarithm}`
 * `[num_workers]`: the number of workers for parallelization (default 1)
 * `[prune]`: number of flat clusters to prune to
@@ -35,7 +35,7 @@ python lp.py -d [data] -l [label_index] -k [kernel] -f [function] -o [out_file] 
 
 * `[data]`: the path to the data file (comma delimited)
 * `[label_index]`: the index of the column that contains the labels (default 0)
-* `[metric]`: one of `{avg, max, min}`
+* `[kernel]`: one of `{linear, gaussian}`
 * `[function]`: one of `{linear, quadratic, cubic, exponential, logarithm}`
 * `[num_workers]`: the number of workers for parallelization (default 1)
 * `[prune]`: number of flat clusters to prune to
