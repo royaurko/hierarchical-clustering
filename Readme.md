@@ -28,7 +28,7 @@ python ip.py -d [data] -l [label_index] -k [kernel] -f [function] -o [out_file] 
 To run the approximation algorithm (faster) type
 
 ```shell
-python ip.py -d [data] -l [label_index] -k [kernel] -f [function] -o [out_file] -n [num_workers] -p [prune] -x [num_samples]
+python lp.py -d [data] -l [label_index] -k [kernel] -f [function] -o [out_file] -n [num_workers] -p [prune] -x [num_samples]
 -t [triangle] -e [epsilon]
 ```
 
