@@ -9,6 +9,7 @@ Authors (manuscript): Aurko Roy and Sebastian Pokutta
 ## Non standard dependencies
  - [munkres](https://pypi.python.org/pypi/munkres/)
  - [gurobi](http://www.gurobi.com/) 
+ - [networkx](https://pypi.python.org/pypi/networkx/)
 
 ## Usage
 To run the ILP (warning will be quite slow on large datasets) type
