@@ -4,7 +4,8 @@ Implementation of Integer Linear Program (ILP) to recover exact hierarchical clu
 according to the cost function proposed by Dasgupta (STOC '16) as well as `O(log n)`
 LP rounding based approximation algorithm. 
 
-Authors (manuscript): Aurko Roy and Sebastian Pokutta 
+Authors: Aurko Roy and Sebastian Pokutta
+[Paper](https://sites.google.com/site/royaurko/cost-clustering.pdf) (to appear in NIPS 2016) 
 
 ## Non standard dependencies
  - [munkres](https://pypi.python.org/pypi/munkres/)
