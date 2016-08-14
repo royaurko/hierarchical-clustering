@@ -5,6 +5,7 @@ according to the cost function proposed by Dasgupta (STOC '16) as well as `O(log
 LP rounding based approximation algorithm. 
 
 Authors: Aurko Roy and Sebastian Pokutta
+
 [Paper](https://sites.google.com/site/royaurko/cost-clustering.pdf) (to appear in NIPS 2016) 
 
 ## Non standard dependencies
