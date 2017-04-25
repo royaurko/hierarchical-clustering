@@ -2,9 +2,8 @@ from __future__ import print_function
 from __future__ import division
 import argparse
 import numpy as np
-from scipy.spatial.distance import pdist, cosine, squareform
+from scipy.spatial.distance import pdist, cosine
 import scipy.cluster.hierarchy as hac
-from sklearn.cluster import AgglomerativeClustering
 import time
 import itertools
 import math
@@ -12,6 +11,27 @@ from gurobipy import *
 import utils
 import ip
 from sklearn.cluster import KMeans
+import random
+
+
+def faster_spreading_constraints(m):
+    # Faster spreading constraint using S = V
+    n = m._n
+    flag = False
+    # Randomly sample num_t many t's to add constraints
+    num_t = 10
+    for i in xrange(n):
+        for _ in xrange(num_t):
+            t = random.randint(1, n-1)
+            # for t in xrange(1, n):
+            pre_var_list = [m._vars[j, i, t] for j in xrange(i)]
+            post_var_list = [m._vars[i, j, t] for j in xrange(i + 1, n)]
+            var_list = pre_var_list + post_var_list
+            s = sum([y.X for y in var_list])
+            if s < n - t:
+                m.addConstr(sum(var_list) >= n - t)
+                flag = True
+    return flag
 
 
 def spreading_constraints(m):
@@ -20,7 +40,6 @@ def spreading_constraints(m):
     # Get variables
     tol = 1e-5
     flag = False
-    counter = 0
     for i in xrange(n):
         for t in xrange(1, n):
             pre_var_list = [(m._vars[j, i, t], j) for j in xrange(i)]
@@ -30,6 +49,7 @@ def spreading_constraints(m):
             solution.sort(key=lambda x: x[0])
             s = 0
             expr = 0
+            # k only needs to be n
             for k in xrange(len(solution)):
                 # k iterates over the sizes of the set S
                 s += solution[k][0]
@@ -41,8 +61,6 @@ def spreading_constraints(m):
                 if abs(s - (k + 2 - t)) > tol and s < k + 2 - t:
                     m.addConstr(expr >= k + 2 - t)
                     flag = True
-                    counter += 1
-    print("{0} spreading constraints added".format(counter))
     return flag
 
 
@@ -97,11 +115,12 @@ def separation_oracle(m, triangle):
     flag_triangle = False
     if triangle:
         flag_triangle = triangle_constraints(m)
-    flag_separation = spreading_constraints(m)
+    flag_separation = faster_spreading_constraints(m)
+    # flag_separation = spreading_constraints(m)
     return flag_triangle or flag_separation
 
 
-def add_variables(data, similarity, m, f):
+def add_variables(data, m, kernel, f):
     # Add variables to m
     print('Adding variables to model')
     v = {}
@@ -113,7 +132,12 @@ def add_variables(data, similarity, m, f):
         for j in xrange(i + 1, n):
             for t in xrange(1, n):
                 # w[i, j, t] is the kernel function
-                w[i, j, t] = (f(t) - f(t-1)) * similarity[i, j]
+                if kernel == 'gaussian':
+                    s = 100000
+                    dist = np.linalg.norm(data[i] - data[j])
+                    w[i, j, t] = (f(t) - f(t-1)) * np.exp(- (dist ** 2)/(s **2))
+                else:
+                    w[i, j, t] = (f(t) - f(t-1)) * (1 - cosine(data[i], data[j]))
                 vname = 'x_{0}_{1}_{2}'.format(i, j, t)
                 v[i, j, t] = m.addVar(lb=0.0, ub=1.0, obj=w[i, j, t], vtype=GRB.CONTINUOUS, name=vname)
                 counter += 1
@@ -180,12 +204,12 @@ def check_spreading_constraints(m):
     return True
 
 
-def init_model(data, similarity, triangle, f):
+def init_model(data, kernel, triangle, f):
     # Initiliaze Gurobi model
     m = Model()
     m._n = data.shape[0]
     # Add variables
-    add_variables(data, similarity, m, f)
+    add_variables(data, m, kernel, f)
     # Add layer constraints
     add_layer_constraints(m)
     if not triangle:
@@ -238,8 +262,11 @@ def round_solution(m, solution_dict, eps):
                     # print('i = {0}, U = {1}, t = {2}'.format(i, U, t))
                     # print('v_delta = {0}, v_zero = {1}'.format(v_delta, v_zero))
 
-                    threshold = math.log(v_delta/v_zero)
-                    threshold /= delta
+                    try:
+                        threshold = math.log(v_delta/v_zero)
+                        threshold /= delta
+                    except:
+                        print("v_delta = {}, v_zero = {}".format(v_delta, v_zero))
                     pre_var_list = [(solution_dict[j, i, t], j) for j in range(i)]
                     post_var_list = [(solution_dict[i, j, t], j) for j in range(i + 1, n)]
                     var_list = pre_var_list + post_var_list
@@ -434,31 +461,18 @@ def main(data, target, args):
     # Test other hierarchical clustering algorithms
     one_target = map(lambda x: x + 1, target)
     k = args.prune
+    y = pdist(data, metric='euclidean')
     Z = []
-    if args.kernel == 'cosine':
-        y = pdist(data, metric='cosine')
-        # Make condensed distance matrix into redundant form
-        similarity = 1 - y
-        similarity = squareform(similarity)
-    if args.kernel == 'gaussian':
-        y = pdist(data, metric='sqeuclidean')
-        s = 1
-        y = 1 - np.exp(-(y**2)/(2*s ** 2))
-        # Make condensed distance matrix into redundant form
-        similarity = 1 - y
-        similarity = squareform(similarity)
-    if args.kernel == 'sqeuclidean':
-        y = pdist(data, metric='sqeuclidean')
-        similarity = - y
-        similarity = squareform(similarity)
     Z.append(hac.linkage(y, method='single'))
-    Z.append(hac.linkage(y, method='average'))
     Z.append(hac.linkage(y, method='complete'))
-    Z.append(hac.linkage(data, method='ward'))
+    Z.append(hac.linkage(y, method='average'))
+    ward = hac.linkage(data, method='ward')
+    Z.append(ward)
     errors = []
-    for i in xrange(len(Z)):
-        pred = hac.fcluster(Z[i], k, 'maxclust')
-        print('pred = ', pred)
+    while Z:
+        x = Z.pop(0)
+        pred = hac.fcluster(x, k, 'maxclust')
+        # print('pred = ', pred)
         err = utils.error(list(pred), one_target)
         errors.append(err)
     # K means
@@ -467,21 +481,22 @@ def main(data, target, args):
     pred = map(lambda x: x + 1, pred)
     err = utils.error(list(pred), one_target)
     errors.append(err)
-    print('kmeans = ', pred)
+    # print('kmeans = ', pred)
     error_dict = {'single linkage': errors[0], 'complete linkage': errors[1], 'average linkage': errors[2], 'ward': errors[3]}
     error_dict['kmeans'] = errors[4]
     print(error_dict)
+
     # initialize model
     if args.function == 'linear':
-        m = init_model(data, similarity, args.triangle, utils.linear)
+        m = init_model(data, args.kernel, args.triangle, utils.linear)
     if args.function == 'quadratic':
-        m = init_model(data, similarity, args.triangle, utils.quadratic)
+        m = init_model(data, args.kernel, args.triangle, utils.quadratic)
     if args.function == 'cubic':
-        m = init_model(data, similarity, args.triangle, utils.cubic)
+        m = init_model(data, args.kernel, args.triangle, utils.cubic)
     if args.function == 'logarithm':
-        m = init_model(data, similarity, args.triangle, utils.logarithm)
+        m = init_model(data, args.kernel, args.triangle, utils.logarithm)
     if args.function == 'exponential':
-        m = init_model(data, similarity,  args.triangle, utils.exponential)
+        m = init_model(data, args.kernel, args.triangle, utils.exponential)
     m._n = data.shape[0]
 
     # Check if reading solution from file
@@ -559,7 +574,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--data', help='Data file', required=True)
     parser.add_argument('-l', '--label', type=int, default=-1, help='Column of labels')
-    parser.add_argument('-k', '--kernel', type=str, default='cosine', help='Type of kernel')
+    parser.add_argument('-k', '--kernel', type=str, default='linear', help='Type of kernel')
     parser.add_argument('-t', '--triangle', action='store_true', help='lazy triangle')
     parser.add_argument('-f', '--function', type=str, default='linear', help='linear, quadratic, cubic, logarithm, exponential')
     parser.add_argument('-n', '--num_threads', type=int, default=1, help='Number of threads')
