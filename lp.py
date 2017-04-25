@@ -14,12 +14,11 @@ from sklearn.cluster import KMeans
 import random
 
 
-def faster_spreading_constraints(m):
-    # Faster spreading constraint using S = V
+def fast_spreading_constraints(m, num_t=5):
+    # Fast spreading constraint using S = V and sampling t
     n = m._n
     flag = False
     # Randomly sample num_t many t's to add constraints
-    num_t = 10
     for i in xrange(n):
         for _ in xrange(num_t):
             t = random.randint(1, n-1)
@@ -115,7 +114,7 @@ def separation_oracle(m, triangle):
     flag_triangle = False
     if triangle:
         flag_triangle = triangle_constraints(m)
-    flag_separation = faster_spreading_constraints(m)
+    flag_separation = fast_spreading_constraints(m)
     # flag_separation = spreading_constraints(m)
     return flag_triangle or flag_separation
 
@@ -435,13 +434,15 @@ def read_solution(m, solution_file):
     return solution_dict
 
 
-def get_solution_dict(m):
+def get_solution_dict(solution_file):
     solution_dict = {}
-    n = m._n
-    for i in xrange(n):
-        for j in xrange(i + 1, n):
-            for t in xrange(1, n):
-                solution_dict[i, j, t] = m._vars[i, j, t].X
+    with open(solution_file) as f:
+        for line in f:
+            if line[0] == "#":
+                continue
+            key, val = line.split()
+            _, i, j, t = key.split("_")
+            solution_dict[int(i), int(j), int(t)] = float(val)
     return solution_dict
 
 
@@ -510,18 +511,18 @@ def main(data, target, args):
         # Use dual simplex
         m.params.method = 1
         flag = separation_oracle(m, args.triangle)
-        while flag:
+        while flag and time.time() - start < args.time:
+            print("Time_diff = {}".format(time.time() - start))
             m.optimize()
             # Feed solution to separation oracle
             flag = separation_oracle(m, args.triangle)
         end = time.time()
         print('Total time to optimize = {0}'.format(end - start))
-        if m.status == GRB.Status.OPTIMAL:
-            print('Writing solution to ', solution_name)
-            m.write(solution_name)
+        print('Writing solution to ', solution_name)
+        m.write(solution_name)
         print('Saving model to ', model_name)
         m.write(model_name)
-        solution_dict = get_solution_dict(m)
+        solution_dict = get_solution_dict(solution_name)
 
     # print('Triangle inequality satisfied: ', check_triangle_constraints(m))
     # print('Spreading constraints satisfied: ', check_spreading_constraints(m))
@@ -582,6 +583,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--solution', type=str, default='', help='solution file')
     parser.add_argument('-x', '--sample', type=int, default=-1, help='sample')
     parser.add_argument('-p', '--prune', type=int, required=True, help='num of clusters in pruning')
+    parser.add_argument('-ti', '--time', type=float, default=1000, help='optimize at most for this many secs')
     args = parser.parse_args()
 
     # prepare data
