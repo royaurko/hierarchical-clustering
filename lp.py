@@ -9,7 +9,6 @@ import itertools
 import math
 from gurobipy import *
 import utils
-import ip
 from sklearn.cluster import KMeans
 import random
 
@@ -88,6 +87,32 @@ def triangle_constraints(m):
                         flag = True
                         m.addConstr(v_ijt + v_ikt >= v_jkt)
     return flag
+
+
+def add_triangle_spreading_constraints(m):
+    # Add trianlge inequality and spreading constraints explicitly
+    n = m._n
+    start = time.time()
+    for t in xrange(1, n):
+        for i in xrange(n):
+            # Add spreading constraint
+            pre_var_list = [m._vars[j, i, t] for j in xrange(i)]
+            post_var_list = [m._vars[i, j, t] for j in xrange(i + 1, n)]
+            var_list = pre_var_list + post_var_list
+            cname = "spreading_{0}_{1}".format(i, t)
+            m.addConstr(sum(var_list) >= n - t, cname)
+            # Add triangle inequality
+            for j in xrange(i + 1, n):
+                for k in xrange(j + 1, n):
+                    cname1 = 'triangle_{0}_{1}_{2}_{3}'.format(i, j, k, t)
+                    cname2 = 'triangle_{0}_{1}_{2}_{3}'.format(i, k, j, t)
+                    cname3 = 'triangle_{0}_{1}_{2}_{3}'.format(j, k, i, t)
+                    m.addConstr(m._vars[i, j, t] <= m._vars[i, k, t] + m._vars[j, k, t], cname1)
+                    m.addConstr(m._vars[i, k, t] <= m._vars[i, j, t] + m._vars[j, k, t], cname2)
+                    m.addConstr(m._vars[j, k, t] <= m._vars[i, j, t] + m._vars[i, k, t], cname3)
+    m.update()
+    end = time.time()
+    print('Time to add triangle + spreading constraints = {0}'.format(end - start))
 
 
 def add_triangle_constraints(m):
@@ -212,10 +237,7 @@ def init_model(data, kernel, triangle, f):
     # Add layer constraints
     add_layer_constraints(m)
     if not triangle:
-        add_triangle_constraints(m)
-    # Add constraints from file
-    # add_spreading_constraints(m)
-    # add_hereditary_constraints(m)
+        add_triangle_spreading_constraints(m)
     m.modelSense = GRB.MINIMIZE
     m.params.LazyConstraints = 1
     return m
@@ -508,9 +530,7 @@ def main(data, target, args):
         start = time.time()
         print('Optimizing over model')
         m.optimize()
-        # Use dual simplex
-        m.params.method = 1
-        flag = separation_oracle(m, args.triangle)
+        flag = args.triangle
         while flag and time.time() - start < args.time:
             print("Time_diff = {}".format(time.time() - start))
             m.optimize()
@@ -557,7 +577,7 @@ def main(data, target, args):
     utils.complete_ultrametric(d)
     print('Building laminar list')
     L = utils.build_laminar_list(d)
-    print('Laminar list = ', L)
+    # print('Laminar list = ', L)
     print('Check laminar: ', utils.test_laminar(L))
     labels = [1]*m._n
     pruned = utils.prune(L, one_target, k, labels)
@@ -590,6 +610,4 @@ if __name__ == '__main__':
     data, target = utils.prepare_data(args.data, args.label)
     if args.sample > 0:
         data, target = utils.sample(data, target, args.sample)
-    # Run ip first
-    # ip.main(data, target, args)
     main(data, target, args)
